@@ -31,9 +31,9 @@ ext.gbaGame = [
     biosRequired  : true,
     orientation   : "landscape",
     payloadVersion: f.payloadVersion ?: "1",
-    setupNote     : f.setupNote ?: ("On Google TV, use a Bluetooth gamepad for the full " +
-                    "button set, or the remote: OK = A, Play/Pause = B, Menu = Select, " +
-                    "Back = settings menu."),
+    setupNote     : f.setupNote ?: ("Google TV: in your file manager, select the ROM and " +
+                    "gba_bios.bin, then Open with / Share \u2192 this app. Play with a " +
+                    "Bluetooth gamepad, or the remote (OK = A, Play/Pause = B, Back = menu)."),
     variant       : f.variant,
     gameToml      : f.gameToml,
     payloadDirs   : payloadDirs,
@@ -48,3 +48,7 @@ apply from: new File(engineRoot, "platform/android/gbarecomp-app.gradle")
 dependencies {
     implementation project(":tv")
 }
+
+// Game-side Java (the file-manager import screen). Appended after the engine
+// template has set its own source dirs.
+android.sourceSets.main.java.srcDir new File(rootDir, "common/java")

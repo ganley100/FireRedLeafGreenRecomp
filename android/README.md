@@ -49,19 +49,29 @@ wrapper also works.
 
 ## Getting the ROM & BIOS onto a TV
 
-The setup screen imports them with Android's file picker, but **many Google
-TV devices ship without one**. Two alternatives:
+The APKs contain **no ROM and no BIOS**; you import your own after installing.
 
-1. **Private build** (personal use only — never share the APK): embed your own
-   verified dumps; the build checks size + SHA-1.
-   ```
-   ./gradlew :firered:assembleRelease -PprivateRom=/path/firered_usa.gba -PprivateBios=/path/gba_bios.bin
-   ```
-2. **adb** (debug builds): enable developer options on the TV, then
-   ```
-   adb install firered/build/outputs/apk/debug/firered-debug.apk
-   adb push firered_usa.gba gba_bios.bin /data/local/tmp/
-   adb shell "run-as com.frlgrecomp.firered sh -c 'mkdir -p files/roms files/bios && cp /data/local/tmp/firered_usa.gba files/roms/ && cp /data/local/tmp/gba_bios.bin files/bios/'"
-   ```
+**With a file manager on the TV (recommended):**
+1. Copy your ROM (e.g. `firered_usa.gba`) and `gba_bios.bin` onto the TV
+   (USB stick, network share, or your file manager's transfer feature).
+2. In the file manager, select the file → **Open with** (or **Share**) →
+   pick the game (e.g. *FireRedRecomp*). Some file managers let you select
+   both files and share them together.
+3. The app checks the size and SHA-1 and stores the file privately. Once both
+   are in, choose **PLAY**. From then on the game opens straight from the
+   home-screen tile.
 
-Sideload the APK onto Google TV with `adb install` or a sideloading app.
+Only the exact supported dumps are accepted (same check as the setup
+screen); anything else is rejected with its size and SHA-1 shown. The setup
+screen's own CHOOSE buttons use Android's system picker, which many Google TV
+devices lack — use Open with / Share there instead.
+
+**Other options:** `adb` into a debug build:
+```
+adb push firered_usa.gba gba_bios.bin /data/local/tmp/
+adb shell "run-as com.frlgrecomp.firered sh -c 'mkdir -p files/roms files/bios && cp /data/local/tmp/firered_usa.gba files/roms/ && cp /data/local/tmp/gba_bios.bin files/bios/'"
+```
+or a private personal build with `-PprivateRom=... -PprivateBios=...`
+(never share that APK).
+
+Sideload the APK onto Google TV with `adb install` or your file manager.
