@@ -1,0 +1,93 @@
+# game.toml — Pokémon Radical Red (FireRed ROM hack, GBA)
+#
+# Third variant of the FRLG multi-variant repo, alongside ../firered/ and
+# ../leafgreen/. Radical Red is a fan-made hack distributed as a UPS patch
+# that is applied to Pokémon FireRed USA v1.0 (rev0, 41cb23d8…) — the same
+# base ROM the `firered` variant targets. It is built on the Complete
+# FireRed Upgrade (CFRU) + Dynamic Pokémon Expansion engines, which inject
+# a large amount of new THUMB code into the ROM's free space and hook
+# vanilla FireRed routines with branches.
+#
+# Per CLAUDE.md rule 3 the patched ROM is a DIFFERENT GAME and gets its own
+# hash entry. Neither the ROM nor the patch is shipped. See baserom.md.
+#
+# All paths resolve relative to THIS file's directory (variants/radicalred/).
+
+[game]
+name           = "Pokémon Radical Red"
+short_name     = "radicalred"
+default_region = "usa"
+
+[bios]
+path = "../../../gbarecomp/bios/gba_bios.bin"   # override via --bios
+sha1 = "300c20df6731a33952ded8c436f7f186d25d3492"
+
+[rom]
+path = "roms/radicalred.gba"   # user-provided patched ROM; gitignored
+# sha1 filled in per release in config/radicalred_usa.toml.
+
+# ── Recompiler program identity (consumed by gba_recompile) ─────────
+#
+# CFRU expands the cartridge to the full 32 MB GamePak window
+# (0x08000000–0x09FFFFFF), vs. FireRed's 16 MB.
+[program]
+name         = "Pokemon Radical Red"
+id           = "radicalred"
+load_address = 0x08000000
+size         = 0x02000000
+entry_pc     = 0x08000000
+codegen_shards = 64
+
+[identity]
+# REQUIRED before recompiling: the SHA-1 of YOUR patched ROM
+# (`sha1sum roms/radicalred.gba`). Radical Red has several releases and each
+# patch produces a different ROM, so no hash is guessed here. gba_recompile
+# refuses to run while this is empty — which is the intended gate.
+sha1 = ""
+
+# ── Runtime code copy that is NOT symbol-derivable ──────────────────
+#
+# Inherited from the FireRed rev0 base (see ../firered/game.toml): ReadFlashId
+# stack-copies ReadFlash1 into a stack local before probing the flash chip.
+# CFRU does not relocate the agb_flash library, so the ROM-side source is
+# expected to still be FireRed rev0's 0x081DEA30.
+#
+# UNVERIFIED for Radical Red: confirm against mGBA on the patched ROM (the
+# bytes at 0x081DEA30 must match FireRed rev0's ReadFlash1). Load-bearing —
+# without it flash detection fails and the game boots to a black screen.
+[[code_copy]]
+runtime_start = 0x03007DCC
+source_start  = 0x081DEA30
+size          = 0x4
+name          = "ReadFlash1_stack_Buffer"
+note = "Inherited from FireRed rev0; unverified on Radical Red"
+
+[[extra_func]]
+addr = 0x03007DCC
+mode = "thumb"
+name = "ReadFlash1_stack"
+note = "THUMB entry of the ReadFlash1 stack copy above"
+
+# No decomp symbols: pret/pokefirered describes vanilla FireRed only. CFRU
+# hooks many vanilla functions and adds thousands of new ones, so importing
+# FireRed's seeds would mislabel patched code. The recompile starts from the
+# entry point and grows coverage via the discovery / self-heal loop. See
+# symbols/README.md.
+[recompiler]
+entry_point   = "0x08000000"
+out_dir       = "generated"
+strict        = true
+
+# ── Save chip ────────────────────────────────────────────────────────
+# Same 1 Mbit (128 KB) flash as FireRed; CFRU's expanded save data lives in
+# flash sectors vanilla FireRed leaves unused.
+[save]
+type = "flash1m"
+
+[runtime]
+debug_port    = 19902
+window_title  = "RadicalRedRecomp"
+
+[functions]
+arm   = []
+thumb = []

@@ -66,8 +66,30 @@ redistributed**; you supply your own legally-dumped copy.
 |-------------------|---------------------|-------------|-------------------------------------------|------------|
 | `FireRedRecomp`   | Pokémon FireRed     | v1.0 (rev0) | `41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc` | 19852      |
 | `LeafGreenRecomp` | Pokémon LeafGreen   | v1.0 (rev0) | `574fa542ffebb14be69902d1d36f1ec0a4afd71e` | 19862      |
+| `RadicalRedRecomp`| Pokémon Radical Red (FireRed ROM hack) | FireRed v1.0 + patch | *your patched ROM* | 19902 |
 
 The runtime **refuses to launch on an unrecognized ROM** — the SHA-1 must match.
+
+### Radical Red (opt-in)
+
+Radical Red is a fan ROM hack applied as a patch to FireRed USA v1.0 — the same
+base ROM `FireRedRecomp` uses. Neither the ROM nor the patch is shipped, and
+because each Radical Red release patches to a different ROM, the target is only
+generated once you give CMake **your** patched ROM's hash:
+
+```
+cmake -S . -B build -G Ninja \
+      -DRADICALRED_ROM_SHA1=<sha1 of variants/radicalred/roms/radicalred.gba> \
+      -DRADICALRED_ROM_CRC32=0x<crc32>
+gba_recompile --rom variants/radicalred/roms/radicalred.gba \
+              --config variants/radicalred/game.toml \
+              --out variants/radicalred/generated
+cmake --build build --target RadicalRedRecomp
+```
+
+Also put the SHA-1 in `variants/radicalred/game.toml` `[identity] sha1`. See
+[`variants/radicalred/baserom.md`](variants/radicalred/baserom.md). The
+optional Adaptive Overworld mod is FireRed/LeafGreen-only for now.
 
 ## Quick start
 

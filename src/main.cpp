@@ -1,4 +1,4 @@
-// main.cpp — FRLG multi-variant entry point (FireRed / LeafGreen).
+// main.cpp — FRLG multi-variant entry point (FireRed / LeafGreen / Radical Red).
 //
 // One source file backs every variant; the build picks the game via
 // compile-defs set in CMakeLists.txt (add_gba_variant):
@@ -22,7 +22,9 @@
 #include <vector>
 
 #include "runtime.h"
+#if !defined(GEN3_NO_ADAPTIVE_VIEW)
 #include "field_view.h"
+#endif
 
 #ifndef GBARECOMP_BUILTIN_NAME
 #define GBARECOMP_BUILTIN_NAME "GBA cartridge"
@@ -87,7 +89,11 @@ int main(int argc, char** argv) {
     // CRC32 of the pinned ROM (same dump the SHA-1 gates on); the
     // launcher's GAME card uses it for its "ROM verified" check.
     opts.builtin_rom_crc32 = GBARECOMP_BUILTIN_CRC32;
+#if !defined(GEN3_NO_ADAPTIVE_VIEW)
+    // Hacks (Radical Red) build without the adaptive view: its profile
+    // addresses are reviewed only for the unmodified FRLG ROMs.
     gen3::configure_view(opts, gen3::game_profile());
+#endif
     opts.mod_game_id = GBARECOMP_MOD_GAME_ID;
     opts.launcher_region   = (sizeof(GBARECOMP_BUILTIN_REGION) > 1)
                                  ? GBARECOMP_BUILTIN_REGION

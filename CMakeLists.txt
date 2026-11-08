@@ -16,7 +16,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #
 #   Target            Game                 ROM rev   Debug port
 #   FireRedRecomp     Pokémon FireRed      rev0      19852
-#   LeafGreenRecomp   Pokémon LeafGreen    rev1      19862
+#   LeafGreenRecomp   Pokémon LeafGreen    rev0      19862
+#   RadicalRedRecomp  Pokémon Radical Red  (FireRed rev0 + patch)  19902
+#                     — opt-in: needs -DRADICALRED_ROM_SHA1=<sha1>
 # ─────────────────────────────────────────────────────────────────────
 
 # Platform core. Builds against the live gbarecomp checkout on main
@@ -47,11 +49,13 @@ add_executable(verify_rom_hash tools/verify_rom_hash/main.cpp)
 
 # ─────────────────────────────────────────────────────────────────────
 # add_gba_variant(<target> <name> <port> <win_title> <game_name> <sha1>
-#                  <crc32>)
+#                  <crc32> [NO_GEN3_VIEW])
 #   Builds one native game binary from src/main.cpp + the variant's
 #   generated/*.{c,cpp}. Before the recompile has run, generated/ is empty
 #   and the target is a thin scaffold (main only) that still validates the
 #   wiring. game.toml is selected at runtime via the compile-def below.
+#   NO_GEN3_VIEW skips the Gen III adaptive-overworld presentation adapter,
+#   for variants (ROM hacks) without a reviewed src/gen3_profile.cpp entry.
 # ─────────────────────────────────────────────────────────────────────
 set(FRLG_GENERATED_OPTIMIZATION "O2" CACHE STRING "Generated CPU optimization: O1 or O2")
 set_property(CACHE FRLG_GENERATED_OPTIMIZATION PROPERTY STRINGS O1 O2)
@@ -60,6 +64,7 @@ if(NOT FRLG_GENERATED_OPTIMIZATION MATCHES "^(O1|O2)$")
 endif()
 
 function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32)
+    cmake_parse_arguments(VARIANT "NO_GEN3_VIEW" "" "" ${ARGN})
     set(VARIANT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/variants/${NAME}")
     if(EXISTS "${VARIANT_DIR}/generated/recompiled.cpp")
         message(FATAL_ERROR
@@ -74,9 +79,13 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
         src/main.cpp
         ${VARIANT_GENERATED})
 
-    gbarecomp_target_gen3_view(${TARGET} ${NAME})
     string(TOUPPER "${NAME}" GEN3_VARIANT_NAME)
     target_compile_definitions(${TARGET} PRIVATE GEN3_VARIANT_${GEN3_VARIANT_NAME}=1)
+    if(VARIANT_NO_GEN3_VIEW)
+        target_compile_definitions(${TARGET} PRIVATE GEN3_NO_ADAPTIVE_VIEW=1)
+    else()
+        gbarecomp_target_gen3_view(${TARGET} ${NAME})
+    endif()
 
     # Keep the very large generated guest translation units at a bounded
     # optimization/debug-info cost. gba_recompile emits deterministic
@@ -182,7 +191,39 @@ add_gba_variant(FireRedRecomp   firered   19852 "FireRedRecomp"
 add_gba_variant(LeafGreenRecomp leafgreen 19862 "LeafGreenRecomp"
     "Pokemon LeafGreen (USA)" "574fa542ffebb14be69902d1d36f1ec0a4afd71e" 0xD69C96CC)
 
-# Stage the same hash-gated presentation catalog for both variants.
+# Radical Red — FireRed rev0 + the Radical Red UPS patch. Opt-in: every
+# Radical Red release patches to a different ROM, so the hash is supplied by
+# the builder from their own patched dump (CLAUDE.md rule 3: added by
+# checksum, never guessed). See variants/radicalred/baserom.md.
+set(RADICALRED_ROM_SHA1 "" CACHE STRING
+    "SHA-1 of your patched Radical Red ROM (enables RadicalRedRecomp)")
+set(RADICALRED_ROM_CRC32 "0x00000000" CACHE STRING
+    "CRC32 of your patched Radical Red ROM (launcher display only)")
+if(RADICALRED_ROM_SHA1)
+    string(TOLOWER "${RADICALRED_ROM_SHA1}" RADICALRED_ROM_SHA1_LC)
+    if(NOT RADICALRED_ROM_SHA1_LC MATCHES "^[0-9a-f]+$")
+        message(FATAL_ERROR "RADICALRED_ROM_SHA1 must be a 40-char hex SHA-1")
+    endif()
+    string(LENGTH "${RADICALRED_ROM_SHA1_LC}" RADICALRED_SHA1_LEN)
+    if(NOT RADICALRED_SHA1_LEN EQUAL 40)
+        message(FATAL_ERROR "RADICALRED_ROM_SHA1 must be a 40-char hex SHA-1")
+    endif()
+    if(RADICALRED_ROM_SHA1_LC STREQUAL "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc")
+        message(FATAL_ERROR
+            "RADICALRED_ROM_SHA1 is the UNPATCHED FireRed rev0 hash. "
+            "Apply the Radical Red patch first (variants/radicalred/baserom.md).")
+    endif()
+    add_gba_variant(RadicalRedRecomp radicalred 19902 "RadicalRedRecomp"
+        "Pokemon Radical Red" "${RADICALRED_ROM_SHA1_LC}" ${RADICALRED_ROM_CRC32}
+        NO_GEN3_VIEW)
+else()
+    message(STATUS
+        "RadicalRedRecomp: skipped (set -DRADICALRED_ROM_SHA1=<sha1> of your "
+        "patched ROM; see variants/radicalred/baserom.md)")
+endif()
+
+# Stage the same hash-gated presentation catalog for both FRLG variants.
+# (Radical Red is not a target of any preloaded mod; its hash is not listed.)
 foreach(GEN3_TARGET FireRedRecomp LeafGreenRecomp)
     add_custom_command(TARGET ${GEN3_TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory

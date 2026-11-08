@@ -1,0 +1,19 @@
+# radicalred_usa.toml — release-specific overrides for Pokémon Radical Red.
+#
+# Layered on top of ../game.toml. Radical Red is patched onto FireRed USA
+# v1.0 (rev0, 41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc); the resulting ROM
+# hash depends on which Radical Red release you applied.
+#
+# Fill in the SHA-1 / CRC32 of YOUR patched ROM (by checksum, never guessed —
+# CLAUDE.md rule 3), and pass the same values to CMake:
+#   -DRADICALRED_ROM_SHA1=<sha1> -DRADICALRED_ROM_CRC32=0x<crc32>
+
+[rom]
+sha1  = ""   # e.g. output of `sha1sum roms/radicalred.gba`
+crc32 = ""   # informational; the runtime gate is SHA-1
+
+[save]
+type = "flash1m"
+size = "0x20000"
+
+[quirks]
