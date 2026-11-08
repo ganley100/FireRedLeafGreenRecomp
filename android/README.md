@@ -47,6 +47,19 @@ APKs land in `android/<game>/build/outputs/apk/`. On Windows the engine's
 `gbarecomp/platform/android/tools/build-apk.ps1 -GameAndroidDir android`
 wrapper also works.
 
+## Build in GitHub Actions
+
+**Actions → Android APKs → Run workflow** (pick a game and CPU ABIs). The
+recompiler needs your ROM and BIOS to generate the code, so add these
+repository secrets first (Settings → Secrets and variables → Actions):
+`GBA_BIOS_URL`, `FIRERED_ROM_URL`, `LEAFGREEN_ROM_URL`, `RADICALRED_ROM_URL`
+(direct-download https links to your own files) and `RADICALRED_ROM_SHA1`.
+Files are SHA-1 checked, never committed, and the uploaded APKs are checked
+to contain no ROM/BIOS. Optional `ANDROID_KEYSTORE_BASE64` (+ password /
+alias secrets) keeps one signing key so updates install over old versions.
+Details at the top of `.github/workflows/android.yml`. Locally,
+`tools/recompile_variant.sh <game> <rom>` does the same regeneration.
+
 ## Getting the ROM & BIOS onto a TV
 
 The APKs contain **no ROM and no BIOS**; you import your own after installing.

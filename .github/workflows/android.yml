@@ -1,0 +1,196 @@
+# Build the Android / Google TV APKs.
+#
+# Run it from the Actions tab → "Android APKs" → Run workflow.
+#
+# The APKs never contain a ROM or BIOS (players import their own on the
+# device), but the recompiler needs both to GENERATE the game code. They are
+# downloaded from private links you store as repository secrets (GitHub
+# secrets are limited to 48 KB, so the files themselves cannot be secrets):
+#
+#   GBA_BIOS_URL         direct-download https link to your gba_bios.bin
+#   FIRERED_ROM_URL      … to your FireRed USA v1.0 ROM      (41cb23d8…)
+#   LEAFGREEN_ROM_URL    … to your LeafGreen USA v1.0 ROM    (574fa542…)
+#   RADICALRED_ROM_URL   … to your patched Radical Red ROM
+#   RADICALRED_ROM_SHA1  (repository *variable* or secret) that ROM's SHA-1
+#
+# Optional, so app updates install over older ones without losing saves
+# (without them every run is signed with a throwaway key):
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS,
+#   ANDROID_KEY_PASSWORD
+#
+# Every download is SHA-1 verified before use and stays in $RUNNER_TEMP; only
+# the APKs are uploaded.
+name: Android APKs
+
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: Which game to build
+        type: choice
+        options: [all, firered, leafgreen, radicalred]
+        default: all
+      abis:
+        description: "CPU ABIs (comma list). arm64-v8a suits Google TV Streamer and most phones; add armeabi-v7a for 32-bit TVs such as Chromecast with Google TV"
+        type: string
+        default: arm64-v8a
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      games: ${{ steps.pick.outputs.games }}
+    steps:
+      - id: pick
+        env:
+          GAME: ${{ inputs.game }}
+        run: |
+          if [ "$GAME" = all ]; then
+            echo 'games=["firered","leafgreen","radicalred"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "games=[\"$GAME\"]" >> "$GITHUB_OUTPUT"
+          fi
+
+  apk:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJSON(needs.plan.outputs.games) }}
+    env:
+      GAME: ${{ matrix.game }}
+      PRIVATE: ${{ github.workspace }}/../private
+      BIOS_SHA1: 300c20df6731a33952ded8c436f7f186d25d3492
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Fetch engine, launcher UI and SDL (not the decomp)
+        run: |
+          git submodule update --init --depth 1 gbarecomp recomp-ui
+          git -C gbarecomp submodule update --init --depth 1 \
+            external/arm-recomp-core external/recomp-net external/rbengine \
+            platform/android/third_party/SDL
+          git -C recomp-ui submodule update --init --recursive --depth 1 || true
+
+      - name: Resolve this game's ROM
+        id: rom
+        env:
+          FIRERED_ROM_URL: ${{ secrets.FIRERED_ROM_URL }}
+          LEAFGREEN_ROM_URL: ${{ secrets.LEAFGREEN_ROM_URL }}
+          RADICALRED_ROM_URL: ${{ secrets.RADICALRED_ROM_URL }}
+          RR_SHA1_VAR: ${{ vars.RADICALRED_ROM_SHA1 }}
+          RR_SHA1_SECRET: ${{ secrets.RADICALRED_ROM_SHA1 }}
+        run: |
+          case "$GAME" in
+            firered)    url=$FIRERED_ROM_URL;    sha=41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc ;;
+            leafgreen)  url=$LEAFGREEN_ROM_URL;  sha=574fa542ffebb14be69902d1d36f1ec0a4afd71e ;;
+            radicalred) url=$RADICALRED_ROM_URL
+                        sha=$(echo "${RR_SHA1_VAR:-$RR_SHA1_SECRET}" | tr 'A-F' 'a-f') ;;
+          esac
+          if [ -z "$url" ]; then
+            echo "::error::Secret ${GAME^^}_ROM_URL is not set (see the top of .github/workflows/android.yml)"; exit 1
+          fi
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::RADICALRED_ROM_SHA1 (variable or secret) must be your patched ROM's SHA-1"; exit 1
+          fi
+          echo "::add-mask::$url"
+          echo "sha1=$sha" >> "$GITHUB_OUTPUT"
+          echo "ROM_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Download and verify ROM + BIOS (kept outside the workspace)
+        env:
+          GBA_BIOS_URL: ${{ secrets.GBA_BIOS_URL }}
+          ROM_SHA1: ${{ steps.rom.outputs.sha1 }}
+        run: |
+          if [ -z "$GBA_BIOS_URL" ]; then echo "::error::Secret GBA_BIOS_URL is not set"; exit 1; fi
+          mkdir -p "$PRIVATE"
+          curl -fsSL --retry 3 -o "$PRIVATE/rom.gba" "$ROM_URL"
+          curl -fsSL --retry 3 -o "$PRIVATE/gba_bios.bin" "$GBA_BIOS_URL"
+          got_rom=$(sha1sum "$PRIVATE/rom.gba" | cut -d' ' -f1)
+          got_bios=$(sha1sum "$PRIVATE/gba_bios.bin" | cut -d' ' -f1)
+          [ "$got_rom" = "$ROM_SHA1" ] || { echo "::error::ROM SHA-1 $got_rom != expected $ROM_SHA1 (is the link a direct download?)"; exit 1; }
+          [ "$got_bios" = "$BIOS_SHA1" ] || { echo "::error::BIOS SHA-1 $got_bios != expected $BIOS_SHA1"; exit 1; }
+          echo "ROM_SIZE=$(stat -c %s "$PRIVATE/rom.gba")" >> "$GITHUB_ENV"
+          echo "ROM and BIOS verified."
+
+      - name: Build the recompiler (host)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq ninja-build
+          cmake -S gbarecomp -B "$PRIVATE/host" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DGBARECOMP_COMPILER_CACHE=OFF
+          cmake --build "$PRIVATE/host" --target gba_recompile -j"$(nproc)"
+
+      - name: Recompile BIOS and game
+        env:
+          RADICALRED_ROM_SHA1: ${{ steps.rom.outputs.sha1 }}
+        run: |
+          "$PRIVATE/host/gba_recompile" --bios "$PRIVATE/gba_bios.bin" \
+            --config gbarecomp/bios/gba_bios.toml --out "$PRIVATE/generated_bios"
+          tools/recompile_variant.sh "$GAME" "$PRIVATE/rom.gba" "$PRIVATE/host/gba_recompile"
+          rm -f "$PRIVATE/rom.gba" "$PRIVATE/gba_bios.bin"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android NDK + CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-35" "ndk;27.1.12297006" "cmake;3.22.1" > /dev/null
+
+      - name: Release signing key (optional)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$PRIVATE/release.jks"
+            {
+              echo "GBARECOMP_KEYSTORE=$PRIVATE/release.jks"
+              echo "GBARECOMP_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "GBARECOMP_KEY_ALIAS=$KEY_ALIAS"
+              echo "GBARECOMP_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            } >> "$GITHUB_ENV"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: APK is signed with a throwaway key; uninstall the old app (and lose its saves) before installing a new build."
+          fi
+
+      - name: Build APK
+        env:
+          ABIS: ${{ inputs.abis }}
+          RR_SHA1: ${{ steps.rom.outputs.sha1 }}
+        working-directory: android
+        run: |
+          extra=()
+          if [ "$GAME" = radicalred ]; then
+            extra+=(-PradicalRedSha1="$RR_SHA1" -PradicalRedRomSize="$ROM_SIZE")
+          fi
+          ./gradlew --no-daemon ":$GAME:assembleRelease" \
+            -PgbaAbis="$ABIS" -PgbaNativeJobs=3 \
+            -PgbaVersionName="ci-${GITHUB_RUN_NUMBER}" -PgbaVersionCode="${GITHUB_RUN_NUMBER}" \
+            -PgeneratedBiosRoot="$PRIVATE/generated_bios" "${extra[@]}"
+
+      - name: Check the APK carries no ROM or BIOS
+        run: |
+          apk=$(ls android/"$GAME"/build/outputs/apk/release/*.apk | head -1)
+          if unzip -l "$apk" | grep -Ei '\.gba$|gba_bios\.bin'; then
+            echo "::error::APK contains a ROM or BIOS"; exit 1
+          fi
+          mv "$apk" "$GAME-ci-${GITHUB_RUN_NUMBER}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.game }}-apk
+          path: ${{ matrix.game }}-ci-${{ github.run_number }}.apk
+          retention-days: 14

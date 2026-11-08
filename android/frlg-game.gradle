@@ -40,7 +40,14 @@ ext.gbaGame = [
     gameRoot      : gameRoot,
     engineRoot    : engineRoot,
     recompUiRoot  : recompUiRoot,
-    cmakeArguments: ["-DFRLG_ANDROID_VARIANT=${f.variant}"] + (f.cmakeArguments ?: []),
+    cmakeArguments: ["-DFRLG_ANDROID_VARIANT=${f.variant}",
+                     // Recompiled BIOS (gba_recompile --bios). Kept out of the
+                     // engine checkout; -PgeneratedBiosRoot= or env overrides.
+                     "-DGBARECOMP_GENERATED_BIOS_DIR=" +
+                         pick("generatedBiosRoot", "GBARECOMP_GENERATED_BIOS_DIR",
+                             new File(engineRoot, "src/runtime/generated_bios"))
+                             .absolutePath.replace('\\', '/')] +
+                    (f.cmakeArguments ?: []),
 ]
 
 apply from: new File(engineRoot, "platform/android/gbarecomp-app.gradle")

@@ -68,6 +68,39 @@ mode = "thumb"
 name = "ReadFlash1_stack"
 note = "THUMB entry of the ReadFlash1 stack copy above"
 
+# ── IRQ / sound code copies, inherited from the FireRed rev0 base ────
+# FireRed's decomp overlay (../firered/symbols/BPRE_symbols.toml) declares
+# that crt0 copies intr_main and m4a's SoundMainRAM into IWRAM. Radical Red
+# has no overlay, so they are restated here. CFRU leaves crt0 and the m4a
+# engine in place, so the FireRed rev0 source addresses are expected to hold.
+# UNVERIFIED for Radical Red — confirm the copies against mGBA. Without them
+# the IRQ handler and sound mixer could only run through the interpreter.
+[[code_copy]]
+runtime_start = 0x03003580
+source_start  = 0x08000248
+size          = 0x800
+name          = "IntrMain_Buffer"
+note = "Inherited from FireRed rev0 (intr_main copy); unverified on Radical Red"
+
+[[extra_func]]
+addr = 0x03003580
+mode = "arm"
+name = "intrmain_buffer_entry"
+note = "entry of the IntrMain_Buffer code_copy"
+
+[[code_copy]]
+runtime_start = 0x030028E0
+source_start  = 0x081DC0A4
+size          = 0x800
+name          = "SoundMainRAM_Buffer"
+note = "Inherited from FireRed rev0 (SoundMainRAM copy); unverified on Radical Red"
+
+[[extra_func]]
+addr = 0x030028E0
+mode = "thumb"
+name = "soundmainram_buffer_entry"
+note = "entry of the SoundMainRAM_Buffer code_copy"
+
 # No decomp symbols: pret/pokefirered describes vanilla FireRed only. CFRU
 # hooks many vanilla functions and adds thousands of new ones, so importing
 # FireRed's seeds would mislabel patched code. The recompile starts from the
