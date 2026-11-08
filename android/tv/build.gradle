@@ -1,0 +1,18 @@
+// :tv — Google TV / Android TV manifest overlay for every FRLG game module.
+//
+// The engine's shared manifest (gbarecomp/platform/android) is phone-first.
+// Its manifest is the app's main manifest, so the TV additions are merged in
+// from this library instead of editing the engine: the leanback launcher
+// entry, the home-screen banner, and leanback declared as optional so the
+// same APK installs on phones, tablets and TVs.
+plugins {
+    id "com.android.library"
+}
+
+android {
+    namespace "org.frlgrecomp.tv"
+    compileSdk 35
+    defaultConfig {
+        minSdk 28
+    }
+}

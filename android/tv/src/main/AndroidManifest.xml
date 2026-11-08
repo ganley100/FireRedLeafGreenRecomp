@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Optional: the same APK still installs on phones and tablets. -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- Google TV home-screen row tile (320x180dp). Each game module
+         overrides @drawable/tv_banner with its own. -->
+    <application android:banner="@drawable/tv_banner">
+        <!-- Show the setup/launch screen on the Google TV home screen. Merged
+             into the engine's GbaSetupActivity declaration. -->
+        <activity
+            android:name="org.gbarecomp.GbaSetupActivity"
+            android:exported="true"
+            tools:node="merge">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

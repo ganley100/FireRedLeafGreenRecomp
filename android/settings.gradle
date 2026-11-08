@@ -1,0 +1,30 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "FireRedLeafGreenRecomp"
+
+// One APK per game (separate applicationIds, so all can be installed side by
+// side on the same phone or Google TV). `:tv` is the Google TV manifest
+// overlay every game module depends on.
+include(":tv")
+include(":firered")
+include(":leafgreen")
+
+// Radical Red is opt-in, exactly like the desktop target: its ROM hash is
+// your own patched dump's (variants/radicalred/baserom.md).
+//   ./gradlew :radicalred:assembleRelease -PradicalRedSha1=<sha1>
+if (providers.gradleProperty("radicalRedSha1").orNull)
+    include(":radicalred")

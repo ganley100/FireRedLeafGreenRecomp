@@ -1,0 +1,26 @@
+# Android / Google TV runtime configuration for Pokémon LeafGreen Version.
+# Gradle stages this as variants/leafgreen/game.toml inside the app's private files
+# directory; paths resolve relative to that location. The BIOS and ROM are
+# imported by the player on first launch (SHA-1 verified); neither ships in
+# the APK.
+
+[game]
+name       = "Pokémon LeafGreen Version"
+short_name = "leafgreen"
+
+[bios]
+path = "../../bios/gba_bios.bin"
+sha1 = "300c20df6731a33952ded8c436f7f186d25d3492"
+
+[rom]
+path = "../../roms/leafgreen_usa.gba"
+sha1 = "574fa542ffebb14be69902d1d36f1ec0a4afd71e"
+
+[save]
+type = "flash1m"
+size = "0x20000"
+path = "../../saves/leafgreen_usa.sav"
+
+[runtime]
+debug_port   = 19862
+window_title = "LeafGreenRecomp"

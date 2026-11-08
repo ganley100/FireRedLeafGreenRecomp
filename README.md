@@ -101,6 +101,13 @@ optional Adaptive Overworld mod is FireRed/LeafGreen-only for now.
 4. Play. Early on you may briefly see the interpreter warm up new code paths; once
    warmed (and cached), they run native.
 
+## Android & Google TV
+
+Each game also builds as an Android APK that runs on **Google TV**, phones and
+tablets. It shows up on the TV home screen, plays with a Bluetooth gamepad or
+the TV remote, and hides the touch controls on TVs. See
+[`android/README.md`](android/README.md).
+
 ## Controls
 
 Both games support Emerald-style adaptive overworld rendering. In **Mods**,

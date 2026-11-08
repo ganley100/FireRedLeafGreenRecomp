@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Google TV banner, 320x180dp. Generic artwork (no third-party assets). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#1A1A1A" android:pathData="M0,0h320v180h-320z" />
+    <!-- Generic two-tone capsule mark. -->
+    <path android:fillColor="#888888"
+        android:pathData="M160,30a60,60 0,0 1,60 60h-120a60,60 0,0 1,60 -60z" />
+    <path android:fillColor="#F2F2F2"
+        android:pathData="M100,90h120a60,60 0,0 1,-120 0z" />
+    <path android:fillColor="#202020" android:pathData="M100,86h120v8h-120z" />
+    <path android:fillColor="#202020"
+        android:pathData="M160,72a18,18 0,1 1,0 36a18,18 0,1 1,0 -36z" />
+    <path android:fillColor="#F2F2F2"
+        android:pathData="M160,80a10,10 0,1 1,0 20a10,10 0,1 1,0 -20z" />
+</vector>

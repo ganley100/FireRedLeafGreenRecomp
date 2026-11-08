@@ -22,6 +22,8 @@
 #include <vector>
 
 #include "runtime.h"
+#include "mobile_platform.h"
+#include "android_device.h"
 #if !defined(GEN3_NO_ADAPTIVE_VIEW)
 #include "field_view.h"
 #endif
@@ -69,7 +71,7 @@ void print_usage() {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int frlg_main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--help") == 0 ||
             std::strcmp(argv[i], "-h") == 0) {
@@ -77,6 +79,14 @@ int main(int argc, char** argv) {
             return 0;
         }
     }
+
+    // Android / Google TV: private-storage layout, log file, staged
+    // game.toml, no pre-boot launcher. No-op on desktop.
+    std::vector<std::string> args(argv, argv + argc);
+    gbarecomp::MobileProcessOptions mobile;
+    mobile.game_config = GBARECOMP_DEFAULT_GAME_CONFIG;
+    mobile.program_name = "./" GBARECOMP_WINDOW_TITLE;
+    const bool on_mobile = gbarecomp::mobile_prepare_process(args, mobile);
 
     // Built-in defaults so a standalone <Variant>Recomp.exe ships without
     // a sibling game.toml. The asset picker still validates against these
@@ -103,14 +113,37 @@ int main(int argc, char** argv) {
                                : nullptr;
     opts.launcher_game_config = GBARECOMP_DEFAULT_GAME_CONFIG;  // prefill ROM/BIOS
 
+    if (on_mobile) {
+        // GBA games are landscape; resume where the OS killed a
+        // backgrounded session.
+        opts.orientation = gbarecomp::RunOptions::Orientation::Landscape;
+        opts.resume_suspend_state_on_launch = true;
+        if (frlg::android_is_tv_device()) {
+            // Google TV: driven by a remote or gamepad. No on-screen touch
+            // pad over the picture; menus keep the TV/desktop layout.
+            opts.touch_pad_default = 0;
+            opts.ui_touch_friendly = false;
+        } else {
+            opts.ui_touch_friendly = true;   // phones/tablets: touch pad on
+        }
+    }
+
 #if defined(GBAGAME_RECOMP_UI)
-    std::vector<std::string> args(argv, argv + argc);
     if (game_launcher_preboot(args, opts)) return 0;   // user quit the launcher
+#endif
     std::vector<char*> av;
     av.reserve(args.size());
     for (auto& s : args) av.push_back(s.data());
     return gbarecomp::run_game(static_cast<int>(av.size()), av.data(), opts);
-#else
-    return gbarecomp::run_game(argc, argv, opts);
-#endif
 }
+
+#if defined(__ANDROID__)
+extern "C" int SDL_main(int argc, char** argv) {
+    // Desktop-sized host stack for the recompiled corpus (mobile_platform.h).
+    return gbarecomp::mobile_run_with_stack(frlg_main, argc, argv);
+}
+#else
+int main(int argc, char** argv) {
+    return frlg_main(argc, argv);
+}
+#endif

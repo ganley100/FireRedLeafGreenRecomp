@@ -75,9 +75,19 @@ function(add_gba_variant TARGET NAME PORT WIN_TITLE GAME_NAME ROM_SHA1 ROM_CRC32
         "${VARIANT_DIR}/generated/*.c"
         "${VARIANT_DIR}/generated/*.cpp")
 
-    add_executable(${TARGET}
-        src/main.cpp
-        ${VARIANT_GENERATED})
+    if(ANDROID)
+        # SDLActivity loads libmain.so; the shared gbarecomp Android shell
+        # (gbarecomp/platform/android) builds this target as `main`.
+        add_library(${TARGET} SHARED
+            src/main.cpp
+            src/android_device.cpp
+            ${VARIANT_GENERATED})
+    else()
+        add_executable(${TARGET}
+            src/main.cpp
+            src/android_device.cpp
+            ${VARIANT_GENERATED})
+    endif()
 
     string(TOUPPER "${NAME}" GEN3_VARIANT_NAME)
     target_compile_definitions(${TARGET} PRIVATE GEN3_VARIANT_${GEN3_VARIANT_NAME}=1)
@@ -174,7 +184,11 @@ if(GBAGAME_RECOMP_UI)
     )
     target_compile_definitions(game_launcher_ui PRIVATE GBARECOMP_ENABLE_MODS=1)
     recomp_target_launcher_ui(game_launcher_ui CONSOLE gba)   # sources, includes, RECOMP_LAUNCHER, asset staging
-    find_package(SDL2 REQUIRED)
+    set_target_properties(game_launcher_ui PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    # Android builds provide SDL2 from the shared shell's SDL subproject.
+    if(NOT TARGET SDL2::SDL2)
+        find_package(SDL2 REQUIRED)
+    endif()
     target_link_libraries(game_launcher_ui PUBLIC SDL2::SDL2)
     if(WIN32)
         target_link_libraries(game_launcher_ui PUBLIC opengl32)
@@ -182,14 +196,37 @@ if(GBAGAME_RECOMP_UI)
     set_property(SOURCE src/main.cpp APPEND PROPERTY COMPILE_DEFINITIONS GBAGAME_RECOMP_UI)
 endif()
 
+# ─────────────────────────────────────────────────────────────────────
+# Android / Google TV: one APK per game, each built as the `main` shared
+# library. Gradle (android/<variant>/build.gradle) selects which variant via
+# -DFRLG_ANDROID_VARIANT=<firered|leafgreen|radicalred>.
+# ─────────────────────────────────────────────────────────────────────
+set(FRLG_ANDROID_VARIANT "firered" CACHE STRING
+    "Android only: which variant builds as libmain.so")
+function(frlg_variant_target OUT NAME DESKTOP_TARGET)
+    if(NOT ANDROID)
+        set(${OUT} ${DESKTOP_TARGET} PARENT_SCOPE)
+    elseif(FRLG_ANDROID_VARIANT STREQUAL NAME)
+        set(${OUT} main PARENT_SCOPE)
+    else()
+        set(${OUT} "" PARENT_SCOPE)
+    endif()
+endfunction()
+
 # FireRed  — rev0, sha1 41cb23d8…
-add_gba_variant(FireRedRecomp   firered   19852 "FireRedRecomp"
+frlg_variant_target(FIRERED_TARGET firered FireRedRecomp)
+if(FIRERED_TARGET)
+add_gba_variant(${FIRERED_TARGET} firered 19852 "FireRedRecomp"
     "Pokemon FireRed (USA)"  "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc" 0xDD88761C)
+endif()
 
 # LeafGreen — rev0 / v1.0, sha1 574fa542… (definitive build, matches FireRed
 # v1.0; rev1 7862c67b work archived in ../../../_gen3_leafgreen_rev1_archive/).
-add_gba_variant(LeafGreenRecomp leafgreen 19862 "LeafGreenRecomp"
+frlg_variant_target(LEAFGREEN_TARGET leafgreen LeafGreenRecomp)
+if(LEAFGREEN_TARGET)
+add_gba_variant(${LEAFGREEN_TARGET} leafgreen 19862 "LeafGreenRecomp"
     "Pokemon LeafGreen (USA)" "574fa542ffebb14be69902d1d36f1ec0a4afd71e" 0xD69C96CC)
+endif()
 
 # Radical Red — FireRed rev0 + the Radical Red UPS patch. Opt-in: every
 # Radical Red release patches to a different ROM, so the hash is supplied by
@@ -199,7 +236,8 @@ set(RADICALRED_ROM_SHA1 "" CACHE STRING
     "SHA-1 of your patched Radical Red ROM (enables RadicalRedRecomp)")
 set(RADICALRED_ROM_CRC32 "0x00000000" CACHE STRING
     "CRC32 of your patched Radical Red ROM (launcher display only)")
-if(RADICALRED_ROM_SHA1)
+frlg_variant_target(RADICALRED_TARGET radicalred RadicalRedRecomp)
+if(RADICALRED_ROM_SHA1 AND RADICALRED_TARGET)
     string(TOLOWER "${RADICALRED_ROM_SHA1}" RADICALRED_ROM_SHA1_LC)
     if(NOT RADICALRED_ROM_SHA1_LC MATCHES "^[0-9a-f]+$")
         message(FATAL_ERROR "RADICALRED_ROM_SHA1 must be a 40-char hex SHA-1")
@@ -213,10 +251,10 @@ if(RADICALRED_ROM_SHA1)
             "RADICALRED_ROM_SHA1 is the UNPATCHED FireRed rev0 hash. "
             "Apply the Radical Red patch first (variants/radicalred/baserom.md).")
     endif()
-    add_gba_variant(RadicalRedRecomp radicalred 19902 "RadicalRedRecomp"
+    add_gba_variant(${RADICALRED_TARGET} radicalred 19902 "RadicalRedRecomp"
         "Pokemon Radical Red" "${RADICALRED_ROM_SHA1_LC}" ${RADICALRED_ROM_CRC32}
         NO_GEN3_VIEW)
-else()
+elseif(RADICALRED_TARGET)
     message(STATUS
         "RadicalRedRecomp: skipped (set -DRADICALRED_ROM_SHA1=<sha1> of your "
         "patched ROM; see variants/radicalred/baserom.md)")
@@ -224,7 +262,11 @@ endif()
 
 # Stage the same hash-gated presentation catalog for both FRLG variants.
 # (Radical Red is not a target of any preloaded mod; its hash is not listed.)
-foreach(GEN3_TARGET FireRedRecomp LeafGreenRecomp)
+# (Android stages mods through the APK payload instead; see android/.)
+foreach(GEN3_TARGET ${FIRERED_TARGET} ${LEAFGREEN_TARGET})
+    if(ANDROID)
+        continue()
+    endif()
     add_custom_command(TARGET ${GEN3_TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_CURRENT_SOURCE_DIR}/mods/preloaded"

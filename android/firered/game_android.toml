@@ -1,0 +1,26 @@
+# Android / Google TV runtime configuration for Pokémon FireRed Version.
+# Gradle stages this as variants/firered/game.toml inside the app's private files
+# directory; paths resolve relative to that location. The BIOS and ROM are
+# imported by the player on first launch (SHA-1 verified); neither ships in
+# the APK.
+
+[game]
+name       = "Pokémon FireRed Version"
+short_name = "firered"
+
+[bios]
+path = "../../bios/gba_bios.bin"
+sha1 = "300c20df6731a33952ded8c436f7f186d25d3492"
+
+[rom]
+path = "../../roms/firered_usa.gba"
+sha1 = "41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc"
+
+[save]
+type = "flash1m"
+size = "0x20000"
+path = "../../saves/firered_usa.sav"
+
+[runtime]
+debug_port   = 19852
+window_title = "FireRedRecomp"

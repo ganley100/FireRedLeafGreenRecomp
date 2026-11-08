@@ -1,0 +1,17 @@
+plugins {
+    id "com.android.application"
+}
+
+ext.frlg = [
+    applicationId : "com.frlgrecomp.firered",
+    title         : "Pokémon FireRed",
+    romLabel      : "Pokémon FireRed (USA, v1.0) ROM",
+    romSha1       : ["41cb23d8dccc8ebd7c649cd8fbb58eeace6e2fdc"],
+    romSize       : 16777216,
+    romFile       : "firered_usa.gba",
+    variant       : "firered",
+    gameToml      : file("game_android.toml"),
+    payloadDirs   : [[from: new File(rootDir.parentFile, "mods/preloaded"), into: "mods"]],
+]
+
+apply from: new File(rootDir, "frlg-game.gradle")

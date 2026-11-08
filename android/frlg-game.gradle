@@ -1,0 +1,50 @@
+// frlg-game.gradle — shared per-game module setup for the FRLG Android apps.
+//
+// A game module sets `ext.frlg = [...]` and applies this file. It fills in
+// the engine's `gbaGame` map (see gbarecomp/platform/android/
+// gbarecomp-app.gradle), adds the Google TV overlay (:tv), and stages the
+// TV-friendly key layout. Engine / UI checkouts default to the pinned
+// submodules; override with -PgbarecompRoot= / -PrecompUiRoot= (or the
+// GBARECOMP_ROOT / RECOMP_UI_ROOT environment variables).
+
+def f = project.ext.frlg
+def gameRoot = rootDir.parentFile
+def pick = { String prop, String env, File fallback ->
+    def v = providers.gradleProperty(prop).orNull ?: System.getenv(env)
+    return v ? new File(v) : fallback
+}
+def engineRoot = pick("gbarecompRoot", "GBARECOMP_ROOT", new File(gameRoot, "gbarecomp"))
+def recompUiRoot = pick("recompUiRoot", "RECOMP_UI_ROOT", new File(gameRoot, "recomp-ui"))
+
+def payloadDirs = [[from: new File(rootDir, "payload/common"), into: "."]]
+payloadDirs.addAll(f.payloadDirs ?: [])
+
+ext.gbaGame = [
+    applicationId : f.applicationId,
+    versionCode   : f.versionCode ?: 1,
+    versionName   : f.versionName ?: "0.1.0",
+    title         : f.title,
+    romLabel      : f.romLabel,
+    romSha1       : f.romSha1,
+    romSize       : f.romSize,
+    romFile       : f.romFile,
+    biosRequired  : true,
+    orientation   : "landscape",
+    payloadVersion: f.payloadVersion ?: "1",
+    setupNote     : f.setupNote ?: ("On Google TV, use a Bluetooth gamepad for the full " +
+                    "button set, or the remote: OK = A, Play/Pause = B, Menu = Select, " +
+                    "Back = settings menu."),
+    variant       : f.variant,
+    gameToml      : f.gameToml,
+    payloadDirs   : payloadDirs,
+    gameRoot      : gameRoot,
+    engineRoot    : engineRoot,
+    recompUiRoot  : recompUiRoot,
+    cmakeArguments: ["-DFRLG_ANDROID_VARIANT=${f.variant}"] + (f.cmakeArguments ?: []),
+]
+
+apply from: new File(engineRoot, "platform/android/gbarecomp-app.gradle")
+
+dependencies {
+    implementation project(":tv")
+}
